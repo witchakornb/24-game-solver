@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>24 Game Solver</title>
+  <style>
+    /* --------------------
+       Global Styling
+    -------------------- */
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    /* --------------------
+       Container
+    -------------------- */
+    .container {
+      background-color: #ffffff;
+      max-width: 500px;
+      width: 90%;
+      margin: 40px auto;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      padding: 20px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 1rem;
+      color: #444;
+    }
+
+    p {
+      color: #666;
+      margin-top: 0;
+    }
+
+    /* --------------------
+       Form & Input
+    -------------------- */
+    .input-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+
+    input[type="number"] {
+      width: 60px;
+      padding: 8px;
+      font-size: 16px;
+      text-align: center;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    button {
+      background-color: #007bff;
+      color: #fff;
+      padding: 10px 24px;
+      font-size: 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    /* --------------------
+       Result Section
+    -------------------- */
+    .result-section {
+      margin-top: 20px;
+      text-align: left;
+    }
+    .result-section h2 {
+      margin-bottom: 10px;
+      color: #444;
+    }
+    .solution-list {
+      list-style: none;
+      padding-left: 0;
+    }
+    .solution-list li {
+      background: #e3f2fd;
+      margin: 5px 0;
+      padding: 8px;
+      border-radius: 4px;
+      color: #333;
+      word-break: break-all;
+    }
+
+    .no-solution {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>24 Game Solver</h1>
+    <p>ใส่ตัวเลข 4 ตัว แล้วคลิก Solve เพื่อแสดงทุกวิธีที่ได้ผลลัพธ์เป็น 24</p>
+
+    <!-- Input row -->
+    <div class="input-row">
+      <input type="number" id="num1" placeholder="Num 1"/>
+      <input type="number" id="num2" placeholder="Num 2"/>
+      <input type="number" id="num3" placeholder="Num 3"/>
+      <input type="number" id="num4" placeholder="Num 4"/>
+    </div>
+
+    <!-- Solve button -->
+    <button onclick="solve24()">Solve</button>
+
+    <!-- Results -->
+    <div class="result-section" id="result-section" style="display: none;">
+      <h2>Solutions:</h2>
+      <ul class="solution-list" id="solution-list"></ul>
+    </div>
+  </div>
+
+  <script>
+    /************************************************
+     * 1) Helper functions
+     ************************************************/
+    function floatEquals(a, b, epsilon = 1e-9) {
+      return Math.abs(a - b) < epsilon;
+    }
+
+    function calculate(a, b, op) {
+      switch (op) {
+        case '+': return a + b;
+        case '-': return a - b;
+        case '*': return a * b;
+        case '/': return b !== 0 ? a / b : null;
+      }
+      return null;
+    }
+
+    // สร้าง Permutation ของ array
+    function permute(array) {
+      if (array.length <= 1) return [array];
+      let results = [];
+      for (let i = 0; i < array.length; i++) {
+        const first = array[i];
+        const rest = array.slice(0, i).concat(array.slice(i + 1));
+        const perms = permute(rest);
+        perms.forEach(p => {
+          results.push([first, ...p]);
+        });
+      }
+      return results;
+    }
+
+    // สร้าง Cartesian Product (เช่น operators^3)
+    function product(arr, length) {
+      if (length === 1) return arr.map(x => [x]);
+      const results = [];
+      for (let i = 0; i < arr.length; i++) {
+        const partials = product(arr, length - 1);
+        partials.forEach(p => {
+          results.push([arr[i], ...p]);
+        });
+      }
+      return results;
+    }
+
+    /************************************************
+     * 2) Evaluate expressions in different parentheses
+     ************************************************/
+    /**
+     * เราจะเช็กทั้ง 5 รูปแบบการใส่วงเล็บหลัก ๆ:
+     * 1) ((a op1 b) op2 c) op3 d
+     * 2) (a op1 (b op2 c)) op3 d
+     * 3) (a op1 b) op2 (c op3 d)
+     * 4) a op1 ((b op2 c) op3 d)
+     * 5) a op1 (b op2 (c op3 d))
+     *
+     * คืนค่า "array ของสตริง" ที่เป็นวิธีคำนวณซึ่งได้ 24
+     */
+    function evaluateAllPatterns(a, b, c, d, ops) {
+      const [op1, op2, op3] = ops;
+      const solutions = [];
+
+      // 1) ((a op1 b) op2 c) op3 d
+      let r1 = calculate(a, b, op1);
+      if (r1 !== null) {
+        let r2 = calculate(r1, c, op2);
+        if (r2 !== null) {
+          let r3 = calculate(r2, d, op3);
+          if (r3 !== null && floatEquals(r3, 24)) {
+            solutions.push(`(( ${a} ${op1} ${b} ) ${op2} ${c}) ${op3} ${d}`);
+          }
+        }
+      }
+
+      // 2) (a op1 (b op2 c)) op3 d
+      let r4 = calculate(b, c, op2);
+      if (r4 !== null) {
+        let r5 = calculate(a, r4, op1);
+        if (r5 !== null) {
+          let r6 = calculate(r5, d, op3);
+          if (r6 !== null && floatEquals(r6, 24)) {
+            solutions.push(`( ${a} ${op1} ( ${b} ${op2} ${c} )) ${op3} ${d}`);
+          }
+        }
+      }
+
+      // 3) (a op1 b) op2 (c op3 d)
+      let r7 = calculate(a, b, op1);
+      let r8 = calculate(c, d, op3);
+      if (r7 !== null && r8 !== null) {
+        let r9 = calculate(r7, r8, op2);
+        if (r9 !== null && floatEquals(r9, 24)) {
+          solutions.push(`( ${a} ${op1} ${b} ) ${op2} ( ${c} ${op3} ${d} )`);
+        }
+      }
+
+      // 4) a op1 ((b op2 c) op3 d)
+      let r10 = calculate(b, c, op2);
+      if (r10 !== null) {
+        let r11 = calculate(r10, d, op3);
+        if (r11 !== null) {
+          let r12 = calculate(a, r11, op1);
+          if (r12 !== null && floatEquals(r12, 24)) {
+            solutions.push(`${a} ${op1} (( ${b} ${op2} ${c} ) ${op3} ${d})`);
+          }
+        }
+      }
+
+      // 5) a op1 (b op2 (c op3 d))
+      let r13 = calculate(c, d, op3);
+      if (r13 !== null) {
+        let r14 = calculate(b, r13, op2);
+        if (r14 !== null) {
+          let r15 = calculate(a, r14, op1);
+          if (r15 !== null && floatEquals(r15, 24)) {
+            solutions.push(`${a} ${op1} ( ${b} ${op2} ( ${c} ${op3} ${d} ))`);
+          }
+        }
+      }
+
+      return solutions;
+    }
+
+    /************************************************
+     * 3) Main function: generate all solutions
+     ************************************************/
+    function findAllSolutions(numbers) {
+      const operators = ['+','-','*','/'];
+      const allPermutations = permute(numbers);
+      const allOps = product(operators, 3);
+
+      const solutionsSet = new Set(); // ใช้ Set เพื่อป้องกันซ้ำ
+
+      for (let perm of allPermutations) {
+        const [a, b, c, d] = perm;
+
+        for (let ops of allOps) {
+          // ตรวจสอบทุก pattern
+          const candidateSolutions = evaluateAllPatterns(a, b, c, d, ops);
+          candidateSolutions.forEach(expr => {
+            solutionsSet.add(expr);
+          });
+        }
+      }
+
+      // แปลงจาก Set -> Array แล้ว sort ไว้ (เพื่อให้เรียงง่ายต่อการอ่าน)
+      return Array.from(solutionsSet).sort();
+    }
+
+    /************************************************
+     * 4) solve24() -> ดึงค่าจาก UI แล้วหา solution
+     ************************************************/
+    function solve24() {
+      // อ่านค่า input
+      const num1 = parseFloat(document.getElementById("num1").value);
+      const num2 = parseFloat(document.getElementById("num2").value);
+      const num3 = parseFloat(document.getElementById("num3").value);
+      const num4 = parseFloat(document.getElementById("num4").value);
+
+      // ตรวจสอบเลข
+      if ([num1, num2, num3, num4].some(n => isNaN(n))) {
+        alert("กรุณากรอกตัวเลขให้ครบทั้ง 4 ช่อง");
+        return;
+      }
+
+      // หา solutions ทั้งหมด
+      const solutions = findAllSolutions([num1, num2, num3, num4]);
+
+      // ส่วนแสดงผล
+      const resultSection = document.getElementById("result-section");
+      const solutionList = document.getElementById("solution-list");
+      solutionList.innerHTML = "";  // เคลียร์รายการเก่า
+
+      if (solutions.length === 0) {
+        resultSection.style.display = "block";
+        solutionList.innerHTML = `<div class="no-solution">No solution found.</div>`;
+      } else {
+        resultSection.style.display = "block";
+        // แสดงทุก solution
+        solutions.forEach(sol => {
+          const li = document.createElement("li");
+          li.textContent = sol;
+          solutionList.appendChild(li);
+        });
+      }
+    }
+  </script>
+</body>
+</html>
