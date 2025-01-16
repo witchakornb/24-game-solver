@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>24 Game Solver</title>
+    <title>24 Game Solver (Expression Tree + Canonical)</title>
     <style>
         :root {
             --primary: #6366F1;
@@ -319,23 +319,23 @@
     <div class="container">
         <div class="card">
             <h1 class="title">24 Game Solver</h1>
-            <p class="subtitle">Enter four numbers and discover all possible combinations to make 24 using basic arithmetic operations (+ - × ÷)</p>
+            <p class="subtitle">Enter four numbers and discover all possible combinations to make 24 using basic arithmetic operations (+ - × ÷), with canonical form to remove duplicates caused by commutative properties.</p>
 
             <div class="input-grid">
                 <div class="input-wrapper">
-                    <input type="number" class="input-number" id="num1" min="0" max="99" required>
+                    <input type="number" class="input-number" id="num1" min="0" max="999" required>
                     <label class="input-label">Number 1</label>
                 </div>
                 <div class="input-wrapper">
-                    <input type="number" class="input-number" id="num2" min="0" max="99" required>
+                    <input type="number" class="input-number" id="num2" min="0" max="999" required>
                     <label class="input-label">Number 2</label>
                 </div>
                 <div class="input-wrapper">
-                    <input type="number" class="input-number" id="num3" min="0" max="99" required>
+                    <input type="number" class="input-number" id="num3" min="0" max="999" required>
                     <label class="input-label">Number 3</label>
                 </div>
                 <div class="input-wrapper">
-                    <input type="number" class="input-number" id="num4" min="0" max="99" required>
+                    <input type="number" class="input-number" id="num4" min="0" max="999" required>
                     <label class="input-label">Number 4</label>
                 </div>
             </div>
@@ -355,202 +355,246 @@
     </div>
 
     <script>
-        /**
-         * เปรียบเทียบตัวเลขสองตัวว่าถือว่าเท่ากันหรือไม่ (ป้องกันปัญหา Floating Point Precision)
-         * @param {number} a 
-         * @param {number} b 
-         * @param {number} epsilon 
-         * @returns {boolean}
-         */
-        function floatEquals(a, b, epsilon = 1e-9) {
-            return Math.abs(a - b) < epsilon;
+        /**************************************************
+         * 1) โครงสร้าง Node สำหรับ Expression Tree
+         **************************************************/
+        class Node {
+            constructor(type, value, left = null, right = null) {
+                // type: 'number' | 'operator'
+                // value: ถ้าเป็น number -> ค่าตัวเลข, ถ้าเป็น operator -> '+','-','*','/'
+                this.type = type;
+                this.value = value;
+                this.left = left;   // Node
+                this.right = right; // Node
+            }
         }
 
-        /**
-         * คำนวณ a (op) b
-         * @param {number} a 
-         * @param {number} b 
-         * @param {string} op 
-         * @returns {number|null}
-         */
-        function calculate(a, b, op) {
-            switch (op) {
-                case '+': return a + b;
-                case '-': return a - b;
-                case '*': return a * b;
-                case '/': return b !== 0 ? a / b : null;
+        /**************************************************
+         * 2) ฟังก์ชันช่วยอื่น ๆ
+         **************************************************/
+        // เปรียบเทียบ floating point ว่าเท่ากับ 24 หรือไม่ (ป้องกันความคลาดเคลื่อน)
+        function floatEquals24(num, epsilon = 1e-9) {
+            return Math.abs(num - 24) < epsilon;
+        }
+
+        // Evaluate Expression Tree
+        function evaluateTree(node) {
+            if (!node) return null;
+            if (node.type === 'number') {
+                return node.value;
+            }
+            // operator
+            const leftVal = evaluateTree(node.left);
+            const rightVal = evaluateTree(node.right);
+            if (leftVal === null || rightVal === null) {
+                return null;
+            }
+            switch (node.value) {
+                case '+': return leftVal + rightVal;
+                case '-': return leftVal - rightVal;
+                case '*': return leftVal * rightVal;
+                case '/': return (rightVal !== 0) ? (leftVal / rightVal) : null;
             }
             return null;
         }
 
-        /**
-         * สร้าง Permutation ของ array ที่ให้
-         * @param {Array} array 
-         * @returns {Array[]} 
-         */
-        function permute(array) {
-            if (array.length <= 1) return [array];
-            let results = [];
-            for (let i = 0; i < array.length; i++) {
-                const first = array[i];
-                const rest = array.slice(0, i).concat(array.slice(i + 1));
+        // Clone Tree (เพื่อหลีกเลี่ยงการแก้ไขต้นไม้ต้นฉบับโดย canonicalize)
+        function cloneTree(node) {
+            if (!node) return null;
+            const newNode = new Node(node.type, node.value);
+            newNode.left = cloneTree(node.left);
+            newNode.right = cloneTree(node.right);
+            return newNode;
+        }
+
+        /**************************************************
+         * 3) สร้างต้นไม้ตาม 5 รูปแบบวงเล็บ
+         **************************************************/
+        function opNode(op, left, right) {
+            return new Node('operator', op, left, right);
+        }
+        function numNode(val) {
+            return new Node('number', val);
+        }
+
+        // Pattern 1: ((a op1 b) op2 c) op3 d
+        function pattern1(a, b, c, d, op1, op2, op3) {
+            const left1 = opNode(op1, numNode(a), numNode(b));
+            const left2 = opNode(op2, left1, numNode(c));
+            const root = opNode(op3, left2, numNode(d));
+            return root;
+        }
+
+        // Pattern 2: (a op1 (b op2 c)) op3 d
+        function pattern2(a, b, c, d, op1, op2, op3) {
+            const right1 = opNode(op2, numNode(b), numNode(c));
+            const left1 = opNode(op1, numNode(a), right1);
+            const root = opNode(op3, left1, numNode(d));
+            return root;
+        }
+
+        // Pattern 3: (a op1 b) op2 (c op3 d)
+        function pattern3(a, b, c, d, op1, op2, op3) {
+            const left1 = opNode(op1, numNode(a), numNode(b));
+            const right1 = opNode(op3, numNode(c), numNode(d));
+            const root = opNode(op2, left1, right1);
+            return root;
+        }
+
+        // Pattern 4: a op1 ((b op2 c) op3 d)
+        function pattern4(a, b, c, d, op1, op2, op3) {
+            const left1 = opNode(op2, numNode(b), numNode(c));
+            const left2 = opNode(op3, left1, numNode(d));
+            const root = opNode(op1, numNode(a), left2);
+            return root;
+        }
+
+        // Pattern 5: a op1 (b op2 (c op3 d))
+        function pattern5(a, b, c, d, op1, op2, op3) {
+            const right1 = opNode(op3, numNode(c), numNode(d));
+            const right2 = opNode(op2, numNode(b), right1);
+            const root = opNode(op1, numNode(a), right2);
+            return root;
+        }
+
+        const patterns = [pattern1, pattern2, pattern3, pattern4, pattern5];
+
+        /**************************************************
+         * 4) Canonical Form ในระดับต้นไม้
+         **************************************************/
+        function canonicalize(root) {
+            if (!root) return null;
+            if (root.type === 'number') return root;
+
+            // canonicalize subtree ก่อน
+            root.left = canonicalize(root.left);
+            root.right = canonicalize(root.right);
+
+            // ถ้า operator เป็น + หรือ * => อนุญาตให้สลับที่ (Commutative)
+            if (root.value === '+' || root.value === '*') {
+                const leftStr = stringify(root.left);
+                const rightStr = stringify(root.right);
+                // ถ้า leftStr > rightStr (lexicographically) => สลับ
+                if (leftStr > rightStr) {
+                    const temp = root.left;
+                    root.left = root.right;
+                    root.right = temp;
+                }
+            }
+            return root;
+        }
+
+        /**************************************************
+         * 5) แปลงต้นไม้เป็นสตริง (เพื่อเก็บลง Map / แสดงผล)
+         **************************************************/
+        function stringify(node) {
+            if (!node) return "";
+            if (node.type === 'number') {
+                return node.value.toString();
+            }
+            const leftStr = stringify(node.left);
+            const rightStr = stringify(node.right);
+            return `(${leftStr} ${node.value} ${rightStr})`;
+        }
+
+        /**************************************************
+         * 6) ฟังก์ชันอื่น ๆ สำหรับ 24 Solver
+         **************************************************/
+        function permute(nums) {
+            if (nums.length <= 1) return [nums];
+            const result = [];
+            for (let i = 0; i < nums.length; i++) {
+                const first = nums[i];
+                const rest = nums.slice(0, i).concat(nums.slice(i+1));
                 const perms = permute(rest);
-                perms.forEach(p => {
-                    results.push([first, ...p]);
-                });
+                perms.forEach(p => result.push([first, ...p]));
             }
-            return results;
+            return result;
         }
 
-        /**
-         * ผลคูณคาร์ทีเซียน (Cartesian product) ของ arr กับตัวเอง length ครั้ง
-         * เช่น product(['+','-','*','/'], 3) => ชุดของ operator 3 ตัวทุกรูปแบบ
-         * @param {Array} arr 
-         * @param {number} length 
-         * @returns {Array[]}
-         */
-        function product(arr, length) {
-            if (length === 1) return arr.map(x => [x]);
+        function opProduct() {
+            const ops = ['+','-','*','/'];
             const results = [];
-            for (let i = 0; i < arr.length; i++) {
-                const partials = product(arr, length - 1);
-                partials.forEach(p => {
-                    results.push([arr[i], ...p]);
-                });
+            for (let o1 of ops) {
+                for (let o2 of ops) {
+                    for (let o3 of ops) {
+                        results.push([o1, o2, o3]);
+                    }
+                }
             }
             return results;
         }
 
-        /**
-         * ตรวจสอบทุก Pattern ของวงเล็บ (5 รูปแบบหลัก) ด้วย operators 3 ตัว
-         * @param {number} a 
-         * @param {number} b 
-         * @param {number} c 
-         * @param {number} d 
-         * @param {string[]} ops 
-         * @returns {string[]} ชุดของสมการที่ได้ผลลัพธ์เป็น 24
-         */
-        function evaluateAllPatterns(a, b, c, d, ops) {
-            const [op1, op2, op3] = ops;
-            const solutions = [];
-
-            // Pattern 1: ((a op1 b) op2 c) op3 d
-            let r1 = calculate(a, b, op1);
-            if (r1 !== null) {
-                let r2 = calculate(r1, c, op2);
-                if (r2 !== null) {
-                    let r3 = calculate(r2, d, op3);
-                    if (r3 !== null && floatEquals(r3, 24)) {
-                        solutions.push(`(( ${a} ${op1} ${b} ) ${op2} ${c}) ${op3} ${d}`);
-                    }
-                }
-            }
-
-            // Pattern 2: (a op1 (b op2 c)) op3 d
-            let r4 = calculate(b, c, op2);
-            if (r4 !== null) {
-                let r5 = calculate(a, r4, op1);
-                if (r5 !== null) {
-                    let r6 = calculate(r5, d, op3);
-                    if (r6 !== null && floatEquals(r6, 24)) {
-                        solutions.push(`( ${a} ${op1} ( ${b} ${op2} ${c} )) ${op3} ${d}`);
-                    }
-                }
-            }
-
-            // Pattern 3: (a op1 b) op2 (c op3 d)
-            let r7 = calculate(a, b, op1);
-            let r8 = calculate(c, d, op3);
-            if (r7 !== null && r8 !== null) {
-                let r9 = calculate(r7, r8, op2);
-                if (r9 !== null && floatEquals(r9, 24)) {
-                    solutions.push(`( ${a} ${op1} ${b} ) ${op2} ( ${c} ${op3} ${d} )`);
-                }
-            }
-
-            // Pattern 4: a op1 ((b op2 c) op3 d)
-            let r10 = calculate(b, c, op2);
-            if (r10 !== null) {
-                let r11 = calculate(r10, d, op3);
-                if (r11 !== null) {
-                    let r12 = calculate(a, r11, op1);
-                    if (r12 !== null && floatEquals(r12, 24)) {
-                        solutions.push(`${a} ${op1} (( ${b} ${op2} ${c} ) ${op3} ${d})`);
-                    }
-                }
-            }
-
-            // Pattern 5: a op1 (b op2 (c op3 d))
-            let r13 = calculate(c, d, op3);
-            if (r13 !== null) {
-                let r14 = calculate(b, r13, op2);
-                if (r14 !== null) {
-                    let r15 = calculate(a, r14, op1);
-                    if (r15 !== null && floatEquals(r15, 24)) {
-                        solutions.push(`${a} ${op1} ( ${b} ${op2} ( ${c} ${op3} ${d} ))`);
-                    }
-                }
-            }
-
-            return solutions;
-        }
-
-        /**
-         * ฟังก์ชันหลัก เรียกใช้เมื่อผู้ใช้กดปุ่ม "Find Solutions"
-         */
+        /**************************************************
+         * 7) solve24 (เรียกใช้เมื่อคลิกปุ่ม)
+         **************************************************/
         function solve24() {
-            const num1 = parseFloat(document.getElementById('num1').value);
-            const num2 = parseFloat(document.getElementById('num2').value);
-            const num3 = parseFloat(document.getElementById('num3').value);
-            const num4 = parseFloat(document.getElementById('num4').value);
+            const n1 = parseFloat(document.getElementById('num1').value);
+            const n2 = parseFloat(document.getElementById('num2').value);
+            const n3 = parseFloat(document.getElementById('num3').value);
+            const n4 = parseFloat(document.getElementById('num4').value);
 
-            // ตรวจสอบค่าว่าง
-            if (isNaN(num1) || isNaN(num2) || isNaN(num3) || isNaN(num4)) {
-                alert('Please enter all four numbers.');
+            if (isNaN(n1) || isNaN(n2) || isNaN(n3) || isNaN(n4)) {
+                alert("Please enter all four numbers!");
                 return;
             }
 
-            // สร้าง permutations ของตัวเลข
-            const permutations = permute([num1, num2, num3, num4]);
+            // ล้างผลลัพธ์เก่า
+            const resultSection = document.getElementById('result-section');
+            const solutionList = document.getElementById('solution-list');
+            resultSection.classList.remove('visible');
+            solutionList.innerHTML = "";
 
-            // สร้าง combinations ของ operators 3 ตัว ( + - * / )
-            const operatorSets = product(['+','-','*','/'], 3);
+            const numsPerms = permute([n1, n2, n3, n4]);
+            const opSets = opProduct();
 
-            // เก็บทุก solutions ไว้ในเซ็ต (เพื่อป้องกันการซ้ำ)
-            const allSolutions = new Set();
+            // เก็บ (canonicalString -> originalString) เพื่อลดสมการซ้ำ
+            const solutionsMap = new Map();
 
-            // ลองทุก permutation + operatorSet + 5 patterns
-            for (let perm of permutations) {
-                for (let ops of operatorSets) {
-                    const [a, b, c, d] = perm;
-                    const solutions = evaluateAllPatterns(a, b, c, d, ops);
-                    solutions.forEach(sol => allSolutions.add(sol));
+            for (let perm of numsPerms) {
+                for (let ops of opSets) {
+                    for (let patternFunc of patterns) {
+                        const [a, b, c, d] = perm;
+                        const [op1, op2, op3] = ops;
+
+                        // สร้างต้นไม้
+                        const root = patternFunc(a, b, c, d, op1, op2, op3);
+
+                        // Evaluate
+                        const val = evaluateTree(root);
+                        if (val !== null && floatEquals24(val)) {
+                            // clone -> canonicalize -> stringify
+                            const clonedRoot = cloneTree(root);
+                            const canonRoot = canonicalize(clonedRoot);
+                            const canonStr = stringify(canonRoot);
+
+                            // เก็บ original
+                            const originalStr = stringify(root);
+
+                            if (!solutionsMap.has(canonStr)) {
+                                solutionsMap.set(canonStr, originalStr);
+                            }
+                        }
+                    }
                 }
             }
 
-            // แสดงผลลัพธ์
-            const resultSection = document.getElementById('result-section');
-            const solutionList = document.getElementById('solution-list');
-            solutionList.innerHTML = ''; // ล้างของเดิมก่อน
-
-            // หากพบวิธีแก้
-            if (allSolutions.size > 0) {
-                // แปลง set -> array และ sort เพื่อความสวยงาม (optional)
-                const uniqueSolutions = Array.from(allSolutions).sort();
-
-                // สร้าง element แสดงวิธีแก้ทีละรายการ
-                uniqueSolutions.forEach(solution => {
+            // แสดงผล
+            if (solutionsMap.size === 0) {
+                const div = document.createElement('div');
+                div.className = "no-solution";
+                div.textContent = "No solution found.";
+                solutionList.appendChild(div);
+            } else {
+                // เรียงตาม key canonical เพื่อความสวยงาม
+                const sortedKeys = Array.from(solutionsMap.keys()).sort();
+                sortedKeys.forEach(canon => {
+                    const original = solutionsMap.get(canon);
                     const li = document.createElement('li');
-                    li.classList.add('solution-item');
-                    li.textContent = solution;
+                    li.className = "solution-item";
+                    li.textContent = original;
                     solutionList.appendChild(li);
                 });
-            } else {
-                // หากไม่พบวิธีแก้
-                const li = document.createElement('div');
-                li.classList.add('no-solution');
-                li.textContent = 'No solution found.';
-                solutionList.appendChild(li);
             }
 
             // แสดงการ์ดผลลัพธ์
