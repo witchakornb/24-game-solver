@@ -313,9 +313,66 @@
         .input-number:focus::after {
             transform: rotate(45deg) translate(100%, 100%);
         }
+             /* Navigation Bar */
+      .navbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: var(--nav-height);
+        background-color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 2rem;
+        z-index: 1000;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .navbar .logo {
+        color: #fff;
+        font-size: 1.5rem;
+        font-weight: bold;
+        text-decoration: none;
+      }
+      .navbar .nav-links {
+        list-style: none;
+        display: flex;
+        gap: 1.5rem;
+      }
+      .navbar .nav-links li {
+        display: inline;
+      }
+      .navbar .nav-links a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 1rem;
+        transition: color 0.2s;
+      }
+      .navbar .nav-links a:hover {
+        color: #d1d5db;
+      }
     </style>
 </head>
 <body>
+        <!-- Navigation Bar -->
+        <nav class="navbar">
+            <a href="#" class="logo">24 Game Solver</a>
+            <ul class="nav-links">
+              <li>
+                <a href="https://witchakornb.github.io/witchakornb/" target="_blank"
+                  >->Home: WitchakornB</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://witchakornb.github.io/smart-price-comparator/"
+                  target="_blank"
+                  >Smart Price Comparator</a
+                >
+              </li>
+              <!-- สามารถเพิ่มลิงก์อื่นๆ ได้ที่นี่ -->
+            </ul>
+          </nav>
     <div class="container">
         <div class="card">
             <h1 class="title">24 Game Solver</h1>
