@@ -18,6 +18,8 @@
             --error: #EF4444;
             --gradient-start: #6366F1;
             --gradient-end: #8B5CF6;
+            --nav-height: 60px;
+            --primary-color: var(--primary);
         }
 
         @keyframes fadeIn {
@@ -49,7 +51,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 2rem 1rem;
+            padding: calc(var(--nav-height) + 2rem) 1rem 2rem 1rem;
             background: linear-gradient(135deg, #F8FAFC, #EEF2FF);
         }
 
@@ -130,6 +132,11 @@
             border-color: var(--primary);
             box-shadow: 0 0 0 4px var(--primary-light);
             transform: translateY(-2px);
+        }
+
+        .input-error {
+            border-color: var(--error) !important; /* Override other border colors */
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2) !important; /* Override other box shadows */
         }
 
         .input-label {
@@ -241,7 +248,7 @@
             padding: 1.5rem;
             background: rgb(239 68 68 / 0.1);
             border-radius: 1rem;
-            animation: pulse 2s infinite ease-in-out;
+            animation: pulse 2s ease-in-out 3; /* Changed to 3 iterations */
         }
 
         .footer {
@@ -277,6 +284,27 @@
             .card {
                 padding: 1.5rem;
             }
+
+            /* Responsive Navbar adjustments */
+            .navbar {
+                flex-direction: column;
+                height: auto;
+                padding: 1rem;
+            }
+            .navbar .logo {
+                margin-bottom: 0.75rem; /* Add some space below the logo */
+                font-size: 1.3rem; /* Slightly reduce logo size */
+            }
+            .navbar .nav-links {
+                flex-direction: column;
+                align-items: center;
+                gap: 0.5rem; /* Reduce gap for vertical layout */
+                width: 100%; /* Ensure links take full width for centering */
+            }
+            .navbar .nav-links a {
+                font-size: 0.95rem; /* Slightly reduce link font size */
+                padding: 0.3rem 0; /* Add some padding for easier tapping */
+            }
         }
 
         /* Additional Animation Classes */
@@ -292,27 +320,6 @@
             transform: translateY(-2px);
         }
 
-        /* Shine effect for inputs */
-        .input-number::after {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(
-                to right,
-                rgba(255,255,255,0) 0%,
-                rgba(255,255,255,0.3) 50%,
-                rgba(255,255,255,0) 100%
-            );
-            transform: rotate(45deg);
-            transition: all 0.3s ease;
-        }
-
-        .input-number:focus::after {
-            transform: rotate(45deg) translate(100%, 100%);
-        }
              /* Navigation Bar */
       .navbar {
         position: fixed;
@@ -380,19 +387,19 @@
 
             <div class="input-grid">
                 <div class="input-wrapper">
-                    <input type="number" class="input-number" id="num1" min="0" max="999" required>
+                    <input type="number" class="input-number" id="num1" min="0" max="999" required aria-label="First number for 24 game">
                     <label class="input-label">Number 1</label>
                 </div>
                 <div class="input-wrapper">
-                    <input type="number" class="input-number" id="num2" min="0" max="999" required>
+                    <input type="number" class="input-number" id="num2" min="0" max="999" required aria-label="Second number for 24 game">
                     <label class="input-label">Number 2</label>
                 </div>
                 <div class="input-wrapper">
-                    <input type="number" class="input-number" id="num3" min="0" max="999" required>
+                    <input type="number" class="input-number" id="num3" min="0" max="999" required aria-label="Third number for 24 game">
                     <label class="input-label">Number 3</label>
                 </div>
                 <div class="input-wrapper">
-                    <input type="number" class="input-number" id="num4" min="0" max="999" required>
+                    <input type="number" class="input-number" id="num4" min="0" max="999" required aria-label="Fourth number for 24 game">
                     <label class="input-label">Number 4</label>
                 </div>
             </div>
@@ -400,7 +407,7 @@
             <button class="button" onclick="solve24()">Find Solutions</button>
         </div>
 
-        <div class="card result-card" id="result-section">
+        <div class="card result-card" id="result-section" aria-live="polite" aria-atomic="true">
             <h2 class="result-title">Solutions Found:</h2>
             <ul class="solutions" id="solution-list"></ul>
         </div>
@@ -586,13 +593,40 @@
          * 7) solve24 (เรียกใช้เมื่อคลิกปุ่ม)
          **************************************************/
         function solve24() {
-            const n1 = parseFloat(document.getElementById('num1').value);
-            const n2 = parseFloat(document.getElementById('num2').value);
-            const n3 = parseFloat(document.getElementById('num3').value);
-            const n4 = parseFloat(document.getElementById('num4').value);
+            const num1El = document.getElementById('num1');
+            const num2El = document.getElementById('num2');
+            const num3El = document.getElementById('num3');
+            const num4El = document.getElementById('num4');
+            const inputElements = [num1El, num2El, num3El, num4El];
 
-            if (isNaN(n1) || isNaN(n2) || isNaN(n3) || isNaN(n4)) {
-                alert("Please enter all four numbers!");
+            // Reset error states
+            inputElements.forEach(el => el.classList.remove('input-error'));
+
+            const n1 = parseFloat(num1El.value);
+            const n2 = parseFloat(num2El.value);
+            const n3 = parseFloat(num3El.value);
+            const n4 = parseFloat(num4El.value);
+
+            let hasError = false;
+            if (isNaN(n1)) {
+                num1El.classList.add('input-error');
+                hasError = true;
+            }
+            if (isNaN(n2)) {
+                num2El.classList.add('input-error');
+                hasError = true;
+            }
+            if (isNaN(n3)) {
+                num3El.classList.add('input-error');
+                hasError = true;
+            }
+            if (isNaN(n4)) {
+                num4El.classList.add('input-error');
+                hasError = true;
+            }
+
+            if (hasError) {
+                alert("Please enter valid numbers in all four fields!"); // Updated alert message
                 return;
             }
 
